@@ -4,10 +4,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Swipeable } from 'react-native-gesture-handler';
 import { AppIcon } from '@/components/AppIcon';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { COLORS } from '@/constants/theme';
+import { COLORS, RADIUS, SOFT_SHADOW, SPACING, TYPE } from '@/constants/theme';
 import { rupiah } from '@/constants/data';
 import { QuantityControl } from '@/components/QuantityControl';
 import { loadCartItems, removeCartItem, updateCartItemQuantity, type CartItem } from '@/lib/cartStorage';
+import { MotionPressable, Reveal } from '@/components/Motion';
 
 export default function CartScreen() {
   const router = useRouter();
@@ -46,19 +47,19 @@ export default function CartScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Keranjang ({items.length})</Text>
+      <Reveal><View style={styles.header}>
+        <View><Text style={styles.eyebrow}>SIAP CHECKOUT</Text><Text style={styles.title}>Keranjang <Text style={styles.count}>{items.length}</Text></Text></View>
         {items.length > 0 ? <Text style={styles.edit}>Ubah</Text> : null}
-      </View>
+      </View></Reveal>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {items.length === 0 ? (
           <View style={styles.emptyState}>
             <View style={styles.emptyIcon}><AppIcon name="cart" size={38} color={COLORS.primary} /></View>
             <Text style={styles.emptyTitle}>Keranjang masih kosong</Text>
             <Text style={styles.emptyText}>Produk yang Anda tambahkan akan muncul di sini.</Text>
-            <Pressable style={styles.browseButton} onPress={() => router.replace('/(tabs)')}>
+            <MotionPressable style={styles.browseButton} onPress={() => router.replace('/(tabs)')}>
               <Text style={styles.browseText}>Jelajahi Produk</Text>
-            </Pressable>
+            </MotionPressable>
           </View>
         ) : (
           <>
@@ -105,18 +106,19 @@ export default function CartScreen() {
           <Text style={styles.totalLabel}>Total ({items.length} produk)</Text>
           <Text style={styles.total}>{rupiah(total)}</Text>
         </View>
-        <Pressable style={[styles.checkout, (items.length === 0 || items.some((item) => !item.isAvailable)) && styles.checkoutDisabled]} disabled={items.length === 0 || items.some((item) => !item.isAvailable)} onPress={() => router.push('/checkout')}>
+        <MotionPressable style={[styles.checkout, (items.length === 0 || items.some((item) => !item.isAvailable)) && styles.checkoutDisabled]} disabled={items.length === 0 || items.some((item) => !item.isAvailable)} onPress={() => router.push('/checkout')}>
           <Text style={styles.checkoutText}>Checkout</Text>
-        </Pressable>
+          <AppIcon name="arrow-forward" size={16} color="#fff"/>
+        </MotionPressable>
       </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#fff' },
-  header: { height: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, borderBottomWidth: 1, borderBottomColor: '#F2F2F2' },
-  title: { fontSize: 18, fontWeight: '900', color: COLORS.text },
+  safe: { flex: 1, backgroundColor: COLORS.background },
+  header: { minHeight: 82, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: SPACING.md },eyebrow:{...TYPE.caption,color:COLORS.primary,letterSpacing:1.4},
+  title: { ...TYPE.h1, color: COLORS.text,marginTop:3 },count:{color:COLORS.primary},
   edit: { fontSize: 13, fontWeight: '700', color: COLORS.primary },
   scroll: { flex: 1 },
   content: { padding: 18, paddingBottom: 20 },
@@ -128,7 +130,7 @@ const styles = StyleSheet.create({
   browseText: { color: '#fff', fontSize: 12, fontWeight: '900' },
   selectAll: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
   selectText: { fontSize: 13, fontWeight: '700', color: COLORS.text },
-  item: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
+  item: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding:14,marginBottom:10,borderWidth:1,borderColor:COLORS.border,borderRadius:RADIUS.lg,backgroundColor:COLORS.card,...SOFT_SHADOW },
   deleteAction: { width: 86, alignItems: 'center', justifyContent: 'center', gap: 4, backgroundColor: '#D92D20' },
   deleteText: { color: '#fff', fontSize: 11, fontWeight: '800' },
   image: { width: 82, height: 82, borderRadius: 13 },
@@ -138,10 +140,10 @@ const styles = StyleSheet.create({
   merchant: { fontSize: 10, color: COLORS.secondaryText, marginTop: 2 },
   price: { fontSize: 13, fontWeight: '900', color: COLORS.primary, marginTop: 8 },
   quantityWrap: { alignSelf: 'flex-end', marginTop: 8 },
-  bottom: { borderTopWidth: 1, borderTopColor: '#EEEEEE', paddingHorizontal: 18, paddingTop: 12, paddingBottom: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#fff' },
+  bottom: { borderTopWidth: 1, borderTopColor: COLORS.border, paddingHorizontal: 18, paddingTop: 12, paddingBottom: 94, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.card },
   totalLabel: { fontSize: 10, color: COLORS.secondaryText },
   total: { marginTop: 2, fontSize: 18, fontWeight: '900', color: COLORS.text },
-  checkout: { minWidth: 132, height: 48, borderRadius: 14, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
+  checkout: { minWidth: 142, height: 48, borderRadius: 14, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center',flexDirection:'row',gap:7 },
   checkoutDisabled: { backgroundColor: COLORS.muted },
   checkoutText: { color: '#fff', fontSize: 14, fontWeight: '900' },
 });

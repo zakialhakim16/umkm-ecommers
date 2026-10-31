@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/refs -- React Native Animated.Value is intentionally retained in stable refs. */
 import { useEffect, useRef } from 'react';
 import { Animated, Easing, ImageBackground, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -8,6 +9,7 @@ import { IMAGES } from '@/constants/data';
 import { parseRecoveryLink, recoveryRedirectUrl } from '@/lib/passwordRecovery';
 import { useHydrated } from '@/hooks/useHydrated';
 import { supabase } from '@/lib/supabase';
+import { APP_HOME } from '@/lib/appVariant';
 
 const SPLASH_DURATION_MS = 1800;
 
@@ -56,11 +58,11 @@ export default function SplashScreen() {
       setTimeout(() => {
         if (!active) return;
         if (data.session?.user) {
-          router.replace('/(tabs)');
+          router.replace(APP_HOME as never);
         } else {
           router.replace({
             pathname: '/account-details',
-            params: { section: 'login', authMode: 'signIn', returnTo: '/(tabs)' },
+            params: { section: 'login', authMode: 'signIn', returnTo: APP_HOME },
           });
         }
       }, remainingTime);
@@ -68,7 +70,7 @@ export default function SplashScreen() {
       setTimeout(() => {
         if (active) router.replace({
           pathname: '/account-details',
-          params: { section: 'login', authMode: 'signIn', returnTo: '/(tabs)' },
+          params: { section: 'login', authMode: 'signIn', returnTo: APP_HOME },
         });
       }, SPLASH_DURATION_MS);
     });

@@ -8,6 +8,7 @@ import { EMPTY_ACCOUNT, loadAccountData, type AccountData } from '@/lib/accountS
 import { supabase } from '@/lib/supabase';
 import { loadDriverAccess } from '@/lib/driverAccount';
 import type { DriverAccess } from '@/lib/driverRegistration';
+import * as Linking from 'expo-linking';
 
 const menuItems = [
   { title: 'Alamat Saya', icon: 'location-outline', section: 'address', summary: (account: AccountData) => account.address?.label ?? 'Tambah alamat pengiriman' },
@@ -86,20 +87,20 @@ export default function ProfileScreen() {
           </View>
         )}
 
-        <Pressable style={styles.sellerMenu} onPress={() => router.push('/seller' as any)}>
+        <Pressable style={styles.sellerMenu} onPress={() => void Linking.openURL('rasalokal-mitra://')}>
           <View style={styles.sellerIcon}><AppIcon name="storefront" size={22} color="#fff" /></View>
           <View style={styles.sellerCopy}>
-            <Text style={styles.sellerTitle}>Pusat Penjual</Text>
-            <Text style={styles.sellerSubtitle}>Kelola UMKM dan pesananmu</Text>
+            <Text style={styles.sellerTitle}>RasaLokal Mitra</Text>
+            <Text style={styles.sellerSubtitle}>Buka aplikasi khusus pemilik UMKM</Text>
           </View>
           <AppIcon name="chevron-forward" size={18} color={COLORS.primary} />
         </Pressable>
 
-        <Pressable style={styles.sellerMenu} onPress={() => router.push(driverAccess?.kind === 'active' ? '/driver' : '/driver-register')} accessibilityRole="button" accessibilityLabel="Pusat Driver">
+        <Pressable style={styles.sellerMenu} onPress={() => void Linking.openURL('rasalokal-driver://')} accessibilityRole="button" accessibilityLabel="Buka RasaLokal Driver">
           <View style={styles.sellerIcon}><AppIcon name="bicycle" size={22} color="#fff" /></View>
           <View style={styles.sellerCopy}>
-            <Text style={styles.sellerTitle}>Pusat Driver</Text>
-            <Text style={styles.sellerSubtitle}>{driverAccess?.kind === 'active' ? 'Lihat tugas dan bagikan lokasi' : driverAccess?.kind === 'pending' ? 'Menunggu aktivasi admin' : 'Daftar dan kelola akun driver'}</Text>
+            <Text style={styles.sellerTitle}>RasaLokal Driver</Text>
+            <Text style={styles.sellerSubtitle}>{driverAccess?.kind === 'active' ? 'Buka tugas aktif di aplikasi Driver' : driverAccess?.kind === 'pending' ? 'Status aktivasi tersedia di aplikasi Driver' : 'Daftar melalui aplikasi khusus Driver'}</Text>
           </View>
           <AppIcon name="chevron-forward" size={18} color={COLORS.primary} />
         </Pressable>

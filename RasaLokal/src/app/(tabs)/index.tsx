@@ -1,240 +1,30 @@
-import { useCallback, useState } from 'react';
-import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useCallback,useMemo,useState } from 'react';
+import { Alert,Image,ScrollView,StyleSheet,Text,TextInput,View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect,useRouter } from 'expo-router';
+import Animated,{FadeIn,LinearTransition} from 'react-native-reanimated';
 import { AppIcon } from '@/components/AppIcon';
-import { useFocusEffect, useRouter } from 'expo-router';
-import { COLORS, SHADOW } from '@/constants/theme';
-import { IMAGES, ProductCategory, rupiah } from '@/constants/data';
-import { SectionHeader } from '@/components/SectionHeader';
+import { MotionPressable,Reveal } from '@/components/Motion';
+import { COLORS,RADIUS,SHADOW,SOFT_SHADOW,SPACING,TYPE } from '@/constants/theme';
+import { IMAGES,ProductCategory,rupiah } from '@/constants/data';
 import { loadAccountData } from '@/lib/accountStorage';
-import { loadPublicProducts, loadPublicStores, type CatalogProduct, type Store } from '@/lib/catalogStorage';
+import { loadPublicProducts,loadPublicStores,type CatalogProduct,type Store } from '@/lib/catalogStorage';
 
-type Category = 'Semua' | ProductCategory;
+type Category='Semua'|ProductCategory;
+const categories:readonly {icon:string;label:Category}[]=[{icon:'grid',label:'Semua'},{icon:'restaurant',label:'Makanan'},{icon:'cafe',label:'Minuman'},{icon:'fast-food',label:'Camilan'},{icon:'gift',label:'Oleh-oleh'}];
+const errorText=(error:unknown)=>error instanceof Error?error.message:'Periksa koneksi Supabase.';
 
-const categories: readonly { icon: string; label: Category }[] = [
-  { icon: 'grid', label: 'Semua' },
-  { icon: 'restaurant', label: 'Makanan' },
-  { icon: 'cafe', label: 'Minuman' },
-  { icon: 'fast-food', label: 'Camilan' },
-  { icon: 'gift', label: 'Oleh-oleh' },
-];
-
-function getErrorMessage(error: unknown, fallback: string) {
-  if (error instanceof Error) return error.message;
-  if (typeof error === 'object' && error !== null && 'message' in error && typeof error.message === 'string') {
-    return error.message;
-  }
-  return fallback;
+export default function HomeScreen(){const router=useRouter();const [search,setSearch]=useState(''),[category,setCategory]=useState<Category>('Semua'),[address,setAddress]=useState('Palembang, Sumatera Selatan'),[products,setProducts]=useState<CatalogProduct[]>([]),[stores,setStores]=useState<Store[]>([]),[loading,setLoading]=useState(true);
+  useFocusEffect(useCallback(()=>{let active=true;setLoading(true);void Promise.all([loadAccountData(),loadPublicProducts(),loadPublicStores()]).then(([account,nextProducts,nextStores])=>{if(!active)return;if(account.address?.details)setAddress(account.address.details);setProducts(nextProducts);setStores(nextStores.filter(store=>nextProducts.some(product=>product.storeId===store.id)));}).catch(error=>{if(active)Alert.alert('Belum dapat memuat beranda',errorText(error))}).finally(()=>{if(active)setLoading(false)});return()=>{active=false}},[]));
+  const visible=useMemo(()=>{const q=search.trim().toLocaleLowerCase('id-ID');return products.filter(p=>(category==='Semua'||p.category===category)&&(!q||`${p.name} ${p.storeName} ${p.category}`.toLocaleLowerCase('id-ID').includes(q)))},[category,products,search]);
+  return <SafeAreaView style={styles.safe} edges={['top']}><ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <Reveal><View style={styles.top}><MotionPressable onPress={()=>router.push('/location')} style={styles.location}><View style={styles.locationIcon}><AppIcon name="location" size={17} color={COLORS.primary}/></View><View style={styles.locationCopy}><Text style={styles.overline}>DIKIRIM KE</Text><Text style={styles.locationText} numberOfLines={1}>{address}</Text></View><AppIcon name="chevron-down" size={14} color={COLORS.muted}/></MotionPressable><MotionPressable onPress={()=>router.push('/notifications' as never)} style={styles.roundButton}><AppIcon name="notifications-outline" size={21} color={COLORS.text}/><View style={styles.notificationDot}/></MotionPressable></View></Reveal>
+    <Reveal delay={60}><Text style={styles.greeting}>Temukan rasa{`\n`}yang <Text style={styles.accent}>terasa dekat.</Text></Text><View style={styles.search}><AppIcon name="search" size={19} color={COLORS.secondaryText}/><TextInput value={search} onChangeText={setSearch} placeholder="Cari makanan, UMKM, atau oleh-oleh" placeholderTextColor={COLORS.muted} style={styles.searchInput}/>{search?<MotionPressable onPress={()=>setSearch('')}><AppIcon name="close-circle" size={19} color={COLORS.muted}/></MotionPressable>:<View style={styles.filter}><AppIcon name="options" size={17} color={COLORS.primary}/></View>}</View></Reveal>
+    <Reveal delay={120}><MotionPressable style={styles.hero} onPress={()=>router.push('/(tabs)/umkm')} accessibilityRole="button"><View style={styles.heroGlow}/><View style={styles.heroCopy}><View style={styles.heroBadge}><View style={styles.liveDot}/><Text style={styles.heroBadgeText}>PILIHAN LOKAL HARI INI</Text></View><Text style={styles.heroTitle}>Dari dapur lokal,{`\n`}langsung ke rumahmu.</Text><View style={styles.heroAction}><Text style={styles.heroActionText}>Jelajahi sekarang</Text><AppIcon name="arrow-forward" size={15} color={COLORS.white}/></View></View><Image source={{uri:IMAGES.hero}} style={styles.heroImage}/></MotionPressable></Reveal>
+    <Reveal delay={180}><View style={styles.categoryHead}><Text style={styles.sectionTitle}>Mau makan apa?</Text><Text style={styles.sectionMeta}>{visible.length} pilihan</Text></View><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categories}>{categories.map(item=>{const active=category===item.label;return <MotionPressable key={item.label} onPress={()=>setCategory(item.label)} style={[styles.category,active&&styles.categoryActive]}><View style={[styles.categoryIcon,active&&styles.categoryIconActive]}><AppIcon name={item.icon} size={19} color={active?COLORS.white:COLORS.primary}/></View><Text style={[styles.categoryText,active&&styles.categoryTextActive]}>{item.label}</Text></MotionPressable>})}</ScrollView></Reveal>
+    <Reveal delay={240}><View style={styles.sectionRow}><View><Text style={styles.sectionTitle}>UMKM di dekatmu</Text><Text style={styles.sectionSubtitle}>Belanja lokal, dampak nyata</Text></View><MotionPressable onPress={()=>router.push('/(tabs)/umkm')}><Text style={styles.link}>Lihat semua</Text></MotionPressable></View><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.storeRail}>{stores.slice(0,5).map(store=>{const first=products.find(p=>p.storeId===store.id);return <MotionPressable key={store.id} style={styles.storeCard} onPress={()=>first&&router.push({pathname:'/product',params:{id:first.id}} as never)}>{store.imageUrl?<Image source={{uri:store.imageUrl}} style={styles.storeImage}/>:<View style={[styles.storeImage,styles.placeholder]}><AppIcon name="storefront" size={28} color={COLORS.primary}/></View>}<View style={styles.openBadge}><View style={styles.liveDot}/><Text style={styles.openText}>{store.isOpen?'Buka':'Tutup'}</Text></View><Text style={styles.storeName} numberOfLines={1}>{store.name}</Text><View style={styles.storeMeta}><AppIcon name="location-outline" size={12} color={COLORS.muted}/><Text style={styles.storeAddress} numberOfLines={1}>{store.address}</Text></View></MotionPressable>})}{!loading&&!stores.length?<Empty label="Belum ada UMKM aktif"/>:null}</ScrollView></Reveal>
+    <Reveal delay={300}><View style={styles.sectionRow}><View><Text style={styles.sectionTitle}>{category==='Semua'?'Pilihan untukmu':category}</Text><Text style={styles.sectionSubtitle}>Dikurasi dari UMKM terbaik</Text></View></View><Animated.View layout={LinearTransition.springify()} style={styles.grid}>{loading?[0,1,2,3].map(i=><View key={i} style={styles.skeleton}/>):visible.map((product,index)=><Animated.View entering={FadeIn.delay(Math.min(index,8)*45)} key={product.id} style={styles.productWrap}><MotionPressable style={styles.product} onPress={()=>router.push({pathname:'/product',params:{id:product.id}} as never)}>{product.image?<Image source={{uri:product.image}} style={styles.productImage}/>:<View style={[styles.productImage,styles.placeholder]}><AppIcon name="restaurant" size={30} color={COLORS.muted}/></View>}<View style={styles.productBadge}><AppIcon name="star" size={10} color="#D98D16"/><Text style={styles.productBadgeText}>Pilihan</Text></View><View style={styles.productBody}><Text style={styles.productName} numberOfLines={2}>{product.name}</Text><Text style={styles.productStore} numberOfLines={1}>{product.storeName}</Text><View style={styles.productBottom}><Text style={styles.price}>{rupiah(product.details.promoPrice??product.price)}</Text><View style={styles.add}><AppIcon name="add" size={17} color={COLORS.white}/></View></View></View></MotionPressable></Animated.View>)}{!loading&&!visible.length?<Empty label="Produk tidak ditemukan"/>:null}</Animated.View></Reveal>
+  </ScrollView></SafeAreaView>;
 }
-
-export default function HomeScreen() {
-  const router = useRouter();
-  const [search, setSearch] = useState('');
-  const [activeCategory, setActiveCategory] = useState<Category>('Semua');
-  const [currentAddress, setCurrentAddress] = useState('Palembang, Sumatera Selatan');
-  const [products, setProducts] = useState<CatalogProduct[]>([]);
-  const [stores, setStores] = useState<Store[]>([]);
-
-  useFocusEffect(useCallback(() => {
-    let active = true;
-    void Promise.allSettled([loadAccountData(), loadPublicProducts(), loadPublicStores()]).then(([accountResult, productsResult, storesResult]) => {
-      if (!active) return;
-
-      if (accountResult.status === 'fulfilled') {
-        if (accountResult.value.address?.details) setCurrentAddress(accountResult.value.address.details);
-      }
-      if (productsResult.status === 'fulfilled') setProducts(productsResult.value);
-      if (storesResult.status === 'fulfilled') {
-        const loadedProducts = productsResult.status === 'fulfilled' ? productsResult.value : [];
-        setStores(storesResult.value.filter((store) => loadedProducts.some((product) => product.storeId === store.id)));
-      }
-
-      const issues: string[] = [];
-      if (accountResult.status === 'rejected') {
-        issues.push(`Data akun: ${getErrorMessage(accountResult.reason, 'tidak dapat dimuat')}`);
-      }
-      if (productsResult.status === 'rejected') {
-        issues.push(`Produk: ${getErrorMessage(productsResult.reason, 'tidak dapat dimuat')}`);
-      }
-      if (storesResult.status === 'rejected') {
-        issues.push(`Toko: ${getErrorMessage(storesResult.reason, 'tidak dapat dimuat')}`);
-      }
-      if (issues.length > 0) Alert.alert('Sebagian data tidak dapat dimuat', issues.join('\n'));
-    });
-    return () => { active = false; };
-  }, []));
-  const searchTerm = search.trim().toLocaleLowerCase('id-ID');
-  const visibleProducts = products.filter((product) => {
-    const matchesCategory = activeCategory === 'Semua' || product.category === activeCategory;
-    const matchesSearch = !searchTerm || `${product.name} ${product.storeName} ${product.category}`
-      .toLocaleLowerCase('id-ID')
-      .includes(searchTerm);
-
-    return matchesCategory && matchesSearch;
-  });
-  const visibleStores = stores.slice(0, 3);
-
-  return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-        <View style={styles.topRow}>
-          <Pressable onPress={() => router.push('/location')} accessibilityRole="button" accessibilityLabel="Pilih lokasi">
-            <Text style={styles.locationLabel}>Lokasi kamu</Text>
-            <View style={styles.locationRow}>
-              <AppIcon name="location" size={16} color={COLORS.primary} />
-              <Text style={styles.location} numberOfLines={1}>{currentAddress}</Text>
-              <AppIcon name="chevron-down" size={14} color={COLORS.muted} />
-            </View>
-          </Pressable>
-          <Pressable
-            onPress={() => router.push('/notifications' as any)}
-            accessibilityRole="button"
-            accessibilityLabel="Buka notifikasi pesanan"
-            style={styles.bellWrap}
-          >
-            <AppIcon name="notifications-outline" size={22} color={COLORS.text} />
-          </Pressable>
-        </View>
-
-        <View style={styles.searchBox}>
-          <AppIcon name="search" size={18} color={COLORS.muted} />
-          <TextInput
-            value={search}
-            onChangeText={setSearch}
-            placeholder="Cari makanan, minuman, atau UMKM..."
-            placeholderTextColor="#AAAAAA"
-            style={styles.searchInput}
-          />
-        </View>
-
-        <View style={styles.hero}>
-          <View style={styles.heroTextWrap}>
-            <Text style={styles.heroTitle}>Kuliner Lokal</Text>
-            <Text style={styles.heroOrange}>Dari UMKM</Text>
-            <Text style={styles.heroSubtitle}>untuk Indonesia</Text>
-          </View>
-          <Image source={{ uri: IMAGES.hero }} style={styles.heroImage} />
-        </View>
-
-        <View style={styles.categories}>
-          {categories.map(({ icon, label }) => {
-            const isActive = activeCategory === label;
-
-            return (
-              <Pressable
-                key={label}
-                accessibilityRole="button"
-                accessibilityState={{ selected: isActive }}
-                accessibilityLabel={`Kategori ${label}`}
-                onPress={() => setActiveCategory(label)}
-                style={({ pressed }) => [styles.categoryItem, pressed && styles.pressed]}
-              >
-                <View style={[styles.categoryIcon, isActive && styles.categoryIconActive]}>
-                  <AppIcon name={icon} size={22} color={isActive ? '#FFFFFF' : COLORS.primary} />
-                </View>
-                <Text style={[styles.categoryLabel, isActive && styles.categoryLabelActive]}>{label}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        <View style={styles.sectionBlock}>
-          <SectionHeader title="UMKM Terdekat" action="Lihat Semua" onPress={() => router.push('/(tabs)/umkm')} />
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
-            {visibleStores.map((merchant) => {
-              const storeProduct = products.find((product) => product.storeId === merchant.id);
-              return (
-              <Pressable key={merchant.id} style={styles.merchantCard} onPress={() => storeProduct && router.push({ pathname: '/product', params: { id: storeProduct.id } } as any)}>
-                {merchant.imageUrl
-                  ? <Image source={{ uri: merchant.imageUrl }} style={styles.merchantImage} resizeMode="cover" />
-                  : <View style={styles.merchantImage}><AppIcon name="storefront" size={34} color={COLORS.primary} /></View>}
-                <Text style={styles.merchantName}>{merchant.name}</Text>
-                <Text style={styles.merchantCity} numberOfLines={1}>{merchant.address}</Text>
-                <View style={styles.ratingRow}>
-                  <AppIcon name="restaurant" size={12} color={COLORS.primary} />
-                  <Text style={styles.distance}>Lihat produk toko</Text>
-                </View>
-              </Pressable>
-              );
-            })}
-            {visibleStores.length === 0 && <Text style={styles.emptySubtitle}>Belum ada toko aktif.</Text>}
-          </ScrollView>
-        </View>
-
-        <View style={styles.sectionBlock}>
-          <SectionHeader title={activeCategory === 'Semua' ? 'Rekomendasi Untuk Kamu' : `Rekomendasi ${activeCategory}`} />
-          <View style={styles.productGrid}>
-            {visibleProducts.map((product) => (
-              <Pressable key={product.id} style={styles.productCard} onPress={() => router.push({ pathname: '/product', params: { id: product.id } } as any)}>
-                {product.image ? <Image source={{ uri: product.image }} style={styles.productImage} /> : <View style={[styles.productImage, styles.productImagePlaceholder]}><AppIcon name="restaurant" size={28} color={COLORS.muted} /></View>}
-                <View style={styles.productInfo}>
-                  <Text style={styles.productName} numberOfLines={1}>{product.name}</Text>
-                  <Text style={styles.productMerchant}>{product.storeName}</Text>
-                  <View style={styles.priceRow}>
-                    <Text style={styles.price}>{rupiah(product.price)}</Text>
-                    <View style={styles.addButton}><AppIcon name="add" size={17} color="#fff" /></View>
-                  </View>
-                </View>
-              </Pressable>
-            ))}
-            {visibleProducts.length === 0 && (
-              <View style={styles.emptyState}>
-                <AppIcon name="search" size={24} color={COLORS.muted} />
-                <Text style={styles.emptyTitle}>Produk tidak ditemukan</Text>
-                <Text style={styles.emptySubtitle}>Coba kata kunci atau kategori lain.</Text>
-              </View>
-            )}
-          </View>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
-  );
-}
-
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#fff' },
-  content: { paddingHorizontal: 18, paddingBottom: 24 },
-  topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 8 },
-  locationLabel: { fontSize: 10, color: COLORS.secondaryText, marginBottom: 2 },
-  locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  location: { maxWidth: 240, fontSize: 12, fontWeight: '700', color: COLORS.text },
-  bellWrap: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#FAFAFA', alignItems: 'center', justifyContent: 'center', position: 'relative' },
-  searchBox: { marginTop: 14, height: 44, borderRadius: 13, backgroundColor: '#F4F4F4', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 13, gap: 8 },
-  searchInput: { flex: 1, fontSize: 13, color: COLORS.text },
-  hero: { marginTop: 16, minHeight: 130, borderRadius: 20, backgroundColor: '#FFE0C7', overflow: 'hidden', flexDirection: 'row', alignItems: 'center', padding: 16 },
-  heroTextWrap: { flex: 1, zIndex: 2 },
-  heroTitle: { fontSize: 19, fontWeight: '900', color: COLORS.text },
-  heroOrange: { fontSize: 19, fontWeight: '900', color: '#C44B00', marginTop: 1 },
-  heroSubtitle: { marginTop: 4, fontSize: 13, fontWeight: '600', color: COLORS.secondaryText },
-  heroImage: { width: 118, height: 92, borderRadius: 16 },
-  categories: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 18 },
-  categoryItem: { alignItems: 'center', width: 62 },
-  categoryIcon: { width: 50, height: 50, borderRadius: 16, backgroundColor: COLORS.orange50, alignItems: 'center', justifyContent: 'center' },
-  categoryIconActive: { backgroundColor: COLORS.primary },
-  categoryLabel: { marginTop: 6, fontSize: 11, fontWeight: '600', color: COLORS.text },
-  categoryLabelActive: { color: COLORS.primary, fontWeight: '800' },
-  pressed: { opacity: 0.75 },
-  sectionBlock: { marginTop: 22 },
-  horizontalList: { paddingTop: 11, paddingRight: 8, gap: 12 },
-  merchantCard: { width: 145, backgroundColor: '#fff', borderRadius: 16, padding: 8, borderWidth: 1, borderColor: COLORS.border, ...SHADOW },
-  merchantImage: { width: '100%', height: 88, borderRadius: 12, backgroundColor: COLORS.orange50, alignItems: 'center', justifyContent: 'center' },
-  merchantName: { fontSize: 13, fontWeight: '800', color: COLORS.text, marginTop: 8 },
-  merchantCity: { fontSize: 10, color: COLORS.secondaryText, marginTop: 2 },
-  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 5 },
-  rating: { fontSize: 10, fontWeight: '700', color: COLORS.text },
-  dot: { fontSize: 10, color: COLORS.muted },
-  distance: { fontSize: 10, color: COLORS.secondaryText },
-  productGrid: { marginTop: 11, flexDirection: 'row', flexWrap: 'wrap', gap: 11 },
-  productCard: { width: '48.3%', borderRadius: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: COLORS.border, overflow: 'hidden', ...SHADOW },
-  productImage: { width: '100%', height: 112 },
-  productImagePlaceholder: { backgroundColor: '#F4F4F4', alignItems: 'center', justifyContent: 'center' },
-  productInfo: { padding: 10 },
-  productName: { fontSize: 13, fontWeight: '800', color: COLORS.text },
-  productMerchant: { fontSize: 10, color: COLORS.secondaryText, marginTop: 2 },
-  priceRow: { marginTop: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  price: { fontSize: 13, fontWeight: '900', color: COLORS.primary },
-  addButton: { width: 26, height: 26, borderRadius: 9, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
-  emptyState: { width: '100%', minHeight: 150, borderRadius: 16, borderWidth: 1, borderColor: COLORS.border, backgroundColor: '#FAFAFA', alignItems: 'center', justifyContent: 'center', padding: 20 },
-  emptyTitle: { marginTop: 8, fontSize: 13, fontWeight: '800', color: COLORS.text },
-  emptySubtitle: { marginTop: 3, fontSize: 11, color: COLORS.secondaryText },
-});
+function Empty({label}:{label:string}){return <View style={styles.empty}><AppIcon name="search" size={24} color={COLORS.muted}/><Text style={styles.emptyText}>{label}</Text></View>}
+const styles=StyleSheet.create({safe:{flex:1,backgroundColor:COLORS.background},content:{paddingHorizontal:SPACING.md,paddingBottom:110},top:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',paddingTop:8},location:{flexDirection:'row',alignItems:'center',flex:1},locationIcon:{width:36,height:36,borderRadius:13,backgroundColor:COLORS.orange50,alignItems:'center',justifyContent:'center'},locationCopy:{marginHorizontal:9,flexShrink:1},overline:{...TYPE.caption,fontSize:8,letterSpacing:1.4,color:COLORS.muted},locationText:{fontSize:12,fontWeight:'800',color:COLORS.text,maxWidth:225},roundButton:{width:40,height:40,borderRadius:14,backgroundColor:COLORS.card,alignItems:'center',justifyContent:'center',...SOFT_SHADOW},notificationDot:{position:'absolute',right:9,top:8,width:6,height:6,borderRadius:3,backgroundColor:COLORS.primary,borderWidth:1,borderColor:COLORS.white},greeting:{...TYPE.display,marginTop:25,color:COLORS.text},accent:{color:COLORS.primary},search:{height:52,marginTop:18,borderRadius:RADIUS.md,backgroundColor:COLORS.card,flexDirection:'row',alignItems:'center',paddingHorizontal:15,gap:9,borderWidth:1,borderColor:COLORS.border,...SOFT_SHADOW},searchInput:{flex:1,fontSize:12,color:COLORS.text},filter:{width:32,height:32,borderRadius:10,backgroundColor:COLORS.orange50,alignItems:'center',justifyContent:'center'},hero:{height:190,marginTop:18,borderRadius:RADIUS.xl,backgroundColor:COLORS.ink,overflow:'hidden',padding:20,justifyContent:'center',...SHADOW},heroGlow:{position:'absolute',width:220,height:220,borderRadius:110,backgroundColor:'#F05A2833',right:-70,top:-70},heroCopy:{zIndex:2,width:'70%'},heroBadge:{alignSelf:'flex-start',flexDirection:'row',alignItems:'center',gap:6,backgroundColor:'#FFFFFF12',paddingHorizontal:9,paddingVertical:6,borderRadius:RADIUS.pill},liveDot:{width:6,height:6,borderRadius:3,backgroundColor:'#55D49C'},heroBadgeText:{fontSize:7,fontWeight:'900',letterSpacing:1.1,color:'#E7DDD8'},heroTitle:{fontSize:21,lineHeight:26,fontWeight:'900',letterSpacing:-.5,color:COLORS.white,marginTop:13},heroAction:{flexDirection:'row',alignItems:'center',gap:7,marginTop:16},heroActionText:{fontSize:10,fontWeight:'800',color:COLORS.white},heroImage:{position:'absolute',right:-12,bottom:0,width:155,height:150,borderTopLeftRadius:70,opacity:.9},categoryHead:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',marginTop:27},sectionTitle:{...TYPE.h2,color:COLORS.text},sectionMeta:{...TYPE.caption,color:COLORS.muted},categories:{gap:9,paddingTop:12,paddingBottom:3},category:{flexDirection:'row',alignItems:'center',gap:7,padding:6,paddingRight:12,borderRadius:RADIUS.pill,backgroundColor:COLORS.card,borderWidth:1,borderColor:COLORS.border},categoryActive:{backgroundColor:COLORS.ink,borderColor:COLORS.ink},categoryIcon:{width:31,height:31,borderRadius:RADIUS.pill,backgroundColor:COLORS.orange50,alignItems:'center',justifyContent:'center'},categoryIconActive:{backgroundColor:COLORS.primary},categoryText:{fontSize:10,fontWeight:'800',color:COLORS.secondaryText},categoryTextActive:{color:COLORS.white},sectionRow:{flexDirection:'row',justifyContent:'space-between',alignItems:'flex-end',marginTop:28},sectionSubtitle:{...TYPE.caption,color:COLORS.muted,marginTop:2},link:{fontSize:10,fontWeight:'900',color:COLORS.primary},storeRail:{gap:12,paddingTop:12,paddingBottom:4},storeCard:{width:156,borderRadius:RADIUS.lg,backgroundColor:COLORS.card,padding:8,borderWidth:1,borderColor:COLORS.border,...SOFT_SHADOW},storeImage:{width:'100%',height:92,borderRadius:RADIUS.md},placeholder:{backgroundColor:COLORS.orange50,alignItems:'center',justifyContent:'center'},openBadge:{position:'absolute',top:16,left:16,flexDirection:'row',alignItems:'center',gap:4,backgroundColor:'#17110ED9',paddingHorizontal:7,paddingVertical:4,borderRadius:RADIUS.pill},openText:{fontSize:7,fontWeight:'900',color:COLORS.white},storeName:{fontSize:12,fontWeight:'900',color:COLORS.text,marginTop:9},storeMeta:{flexDirection:'row',alignItems:'center',gap:3,marginTop:4},storeAddress:{fontSize:8,color:COLORS.muted,flex:1},grid:{flexDirection:'row',flexWrap:'wrap',gap:11,marginTop:12},productWrap:{width:'48.3%'},product:{borderRadius:RADIUS.lg,backgroundColor:COLORS.card,overflow:'hidden',borderWidth:1,borderColor:COLORS.border,...SOFT_SHADOW},productImage:{width:'100%',height:126},productBadge:{position:'absolute',top:9,left:9,flexDirection:'row',alignItems:'center',gap:3,backgroundColor:'#FFFCF5EB',paddingHorizontal:7,paddingVertical:4,borderRadius:RADIUS.pill},productBadgeText:{fontSize:7,fontWeight:'900',color:'#986214'},productBody:{padding:11},productName:{fontSize:12,lineHeight:16,fontWeight:'900',color:COLORS.text,minHeight:32},productStore:{fontSize:9,color:COLORS.muted,marginTop:3},productBottom:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',marginTop:9},price:{fontSize:12,fontWeight:'900',color:COLORS.primary},add:{width:27,height:27,borderRadius:10,backgroundColor:COLORS.primary,alignItems:'center',justifyContent:'center'},skeleton:{width:'48.3%',height:210,borderRadius:RADIUS.lg,backgroundColor:COLORS.cream},empty:{width:190,minHeight:110,borderRadius:RADIUS.lg,borderWidth:1,borderColor:COLORS.border,backgroundColor:COLORS.card,alignItems:'center',justifyContent:'center',padding:18},emptyText:{fontSize:10,fontWeight:'700',color:COLORS.muted,marginTop:7}});

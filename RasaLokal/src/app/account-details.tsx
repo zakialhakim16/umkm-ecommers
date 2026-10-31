@@ -21,6 +21,18 @@ const TITLES: Record<string, string> = {
   about: 'Tentang RasaLokal',
 };
 
+function authenticationErrorMessage(error: unknown, mode: 'signIn' | 'signUp'): string {
+  const value = error && typeof error === 'object' ? error as { code?: string; message?: string } : {};
+  const code = value.code ?? '';
+  const message = value.message ?? '';
+  if (code === 'invalid_credentials' || /invalid login credentials/i.test(message)) return 'Email atau kata sandi tidak sesuai. Jika belum pernah mendaftar di RasaLokal baru, pilih tab Daftar.';
+  if (code === 'email_not_confirmed' || /email not confirmed/i.test(message)) return 'Email belum dikonfirmasi. Buka email dari Supabase lalu tekan tautan konfirmasi.';
+  if (code === 'user_already_exists' || /already registered|already exists/i.test(message)) return 'Email ini sudah terdaftar. Gunakan tab Masuk atau pilih Lupa kata sandi.';
+  if (code === 'weak_password' || /password.*characters/i.test(message)) return 'Kata sandi terlalu lemah. Gunakan minimal 8 karakter dengan kombinasi huruf dan angka.';
+  if (/network|fetch/i.test(message)) return 'Tidak dapat terhubung ke server. Periksa internet lalu coba lagi.';
+  return mode === 'signUp' ? 'Akun belum dapat dibuat. Periksa data lalu coba lagi.' : 'Tidak dapat masuk. Periksa email dan kata sandi.';
+}
+
 export default function AccountDetailsScreen() {
   const router = useRouter();
   const safeBack = useSafeBack('/(tabs)/profile');
@@ -28,7 +40,7 @@ export default function AccountDetailsScreen() {
   const rawSection = Array.isArray(params.section) ? params.section[0] : params.section;
   const requestedAuthMode = Array.isArray(params.authMode) ? params.authMode[0] : params.authMode;
   const requestedReturnTo = Array.isArray(params.returnTo) ? params.returnTo[0] : params.returnTo;
-  const driverAuthentication = requestedReturnTo === '/driver-register';
+  const driverAuthentication = requestedReturnTo === '/driver-register' || requestedReturnTo === '/driver';
   const section = rawSection && TITLES[rawSection] ? rawSection : 'login';
   const [account, setAccount] = useState<AccountData>(EMPTY_ACCOUNT);
   const [catalogProducts, setCatalogProducts] = useState<Awaited<ReturnType<typeof loadPublicProducts>>>([]);
@@ -141,11 +153,14 @@ export default function AccountDetailsScreen() {
       }
       Alert.alert('Berhasil', authMode === 'signUp' ? 'Akun berhasil dibuat.' : 'Anda berhasil masuk.');
       if (requestedReturnTo === '/driver-register') router.replace('/driver-register');
+      else if (requestedReturnTo === '/driver') router.replace('/driver');
+      else if (requestedReturnTo === '/seller') router.replace('/seller' as never);
       else if (requestedReturnTo === '/(tabs)') router.replace('/(tabs)');
       else safeBack();
     } catch (error) {
-      setAuthMessage(error && typeof error === 'object' && 'message' in error && typeof error.message === 'string' ? error.message : 'Tidak dapat masuk atau membuat akun. Coba lagi.');
-      showError(authMode === 'signUp' ? 'Pendaftaran gagal' : 'Login gagal', error);
+      const message = authenticationErrorMessage(error, authMode);
+      setAuthMessage(message);
+      Alert.alert(authMode === 'signUp' ? 'Pendaftaran gagal' : 'Login gagal', message);
     } finally {
       setSubmitting(false);
     }

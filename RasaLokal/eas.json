@@ -1,0 +1,14 @@
+{
+  "cli": { "version": ">= 16.0.0", "appVersionSource": "remote" },
+  "build": {
+    "consumer-preview": { "distribution": "internal", "env": { "EXPO_PUBLIC_APP_VARIANT": "consumer" } },
+    "merchant-preview": { "distribution": "internal", "env": { "EXPO_PUBLIC_APP_VARIANT": "merchant" } },
+    "driver-preview": { "distribution": "internal", "env": { "EXPO_PUBLIC_APP_VARIANT": "driver" } },
+    "consumer-production": { "autoIncrement": true, "env": { "EXPO_PUBLIC_APP_VARIANT": "consumer" } },
+    "merchant-production": { "autoIncrement": true, "env": { "EXPO_PUBLIC_APP_VARIANT": "merchant" } },
+    "driver-production": { "autoIncrement": true, "env": { "EXPO_PUBLIC_APP_VARIANT": "driver" } }
+  },
+  "submit": {
+    "consumer-production": {}, "merchant-production": {}, "driver-production": {}
+  }
+}
