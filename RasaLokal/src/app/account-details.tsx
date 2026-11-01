@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { AppIcon } from '@/components/AppIcon';
+import { WelcomeGlyph } from '@/components/WelcomeGlyph';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { COLORS } from '@/constants/theme';
 import { rupiah } from '@/constants/data';
@@ -69,9 +70,15 @@ export default function AccountDetailsScreen() {
   const needsLogin = ['security', 'address', 'payment', 'favorites'].includes(section) && !account.profile;
 
   useFocusEffect(useCallback(() => {
+    // Authentication forms must remain usable while session recovery or catalog requests stall.
+    // Profile editing lives in the security section; the login form needs no catalog preload.
+    if (section === 'login') {
+      setLoadingAccount(false);
+      return;
+    }
     let active = true;
     setLoadingAccount(true);
-    void Promise.all([loadAccountData(), loadPublicProducts()]).then(([data, loadedProducts]) => {
+    void Promise.all([loadAccountData(), section === 'favorites' ? loadPublicProducts() : Promise.resolve([])]).then(([data, loadedProducts]) => {
       if (!active) return;
       setAccount(data);
       setCatalogProducts(loadedProducts);
@@ -364,7 +371,7 @@ export default function AccountDetailsScreen() {
         {!loadingAccount && section === 'login' && (
           <View style={styles.authShell}>
             <View style={styles.authHero}>
-              <View style={styles.authLogo}><AppIcon name="restaurant" size={30} color="#fff" /></View>
+              <View style={styles.authLogo}><WelcomeGlyph name="bowl" color="#fff" /></View>
               <Text style={styles.authBrand}><Text style={styles.authBrandAccent}>Rasa</Text>Lokal</Text>
               <Text style={styles.authHeroText}>Kuliner lokal, UMKM naik kelas</Text>
             </View>
