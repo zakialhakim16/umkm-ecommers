@@ -1,6 +1,8 @@
+import Constants from 'expo-constants';
 export type AppVariant = 'consumer' | 'merchant' | 'driver';
 
-const rawVariant = process.env.EXPO_PUBLIC_APP_VARIANT;
+const configuredVariant = Constants.expoConfig?.extra?.appVariant;
+const rawVariant = typeof configuredVariant === 'string' ? configuredVariant : process.env.EXPO_PUBLIC_APP_VARIANT;
 export const APP_VARIANT: AppVariant = rawVariant === 'merchant' || rawVariant === 'driver' ? rawVariant : 'consumer';
 
 export const APP_HOME = APP_VARIANT === 'merchant' ? '/seller' : APP_VARIANT === 'driver' ? '/driver' : '/(tabs)';

@@ -53,6 +53,15 @@ export default function ProfileScreen() {
   };
 
   const openProfileDetails = () => router.push({ pathname: '/account-details', params: { section: account.profile ? 'security' : 'login' } } as any);
+  const openCompanionApp = async (scheme: 'rasalokal-mitra://' | 'rasalokal-driver://', label: string) => {
+    try {
+      const installed = await Linking.canOpenURL(scheme);
+      if (installed) await Linking.openURL(scheme);
+      else Alert.alert(`${label} belum terpasang`, `Instal ${label} untuk menggunakan fitur operasional ini. Akun RasaLokal yang sama dapat digunakan.`);
+    } catch {
+      Alert.alert('Aplikasi belum dapat dibuka', `Coba buka kembali setelah ${label} terpasang.`);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -87,7 +96,7 @@ export default function ProfileScreen() {
           </View>
         )}
 
-        <Pressable style={styles.sellerMenu} onPress={() => void Linking.openURL('rasalokal-mitra://')}>
+        <Pressable style={styles.sellerMenu} onPress={() => void openCompanionApp('rasalokal-mitra://', 'RasaLokal Mitra')}>
           <View style={styles.sellerIcon}><AppIcon name="storefront" size={22} color="#fff" /></View>
           <View style={styles.sellerCopy}>
             <Text style={styles.sellerTitle}>RasaLokal Mitra</Text>
@@ -96,7 +105,7 @@ export default function ProfileScreen() {
           <AppIcon name="chevron-forward" size={18} color={COLORS.primary} />
         </Pressable>
 
-        <Pressable style={styles.sellerMenu} onPress={() => void Linking.openURL('rasalokal-driver://')} accessibilityRole="button" accessibilityLabel="Buka RasaLokal Driver">
+        <Pressable style={styles.sellerMenu} onPress={() => void openCompanionApp('rasalokal-driver://', 'RasaLokal Driver')} accessibilityRole="button" accessibilityLabel="Buka RasaLokal Driver">
           <View style={styles.sellerIcon}><AppIcon name="bicycle" size={22} color="#fff" /></View>
           <View style={styles.sellerCopy}>
             <Text style={styles.sellerTitle}>RasaLokal Driver</Text>
