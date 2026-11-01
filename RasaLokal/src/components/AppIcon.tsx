@@ -9,6 +9,7 @@ type Props = {
 };
 
 const ICONS: Record<string, { ios: string; android: string; web: string }> = {
+  options: { ios: 'slider.horizontal.3', android: 'tune', web: 'tune' },
   home: { ios: 'house.fill', android: 'home', web: 'home' },
   storefront: { ios: 'storefront.fill', android: 'storefront', web: 'storefront' },
   cart: { ios: 'cart.fill', android: 'shopping_cart', web: 'shopping_cart' },

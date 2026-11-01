@@ -1,12 +1,12 @@
-import { useCallback, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { AppIcon } from '@/components/AppIcon';
 import { COLORS, SHADOW } from '@/constants/theme';
 import { rupiah } from '@/constants/data';
 import { TopHeader } from '@/components/TopHeader';
-import { observeOrders, ORDER_STATUS_LABELS, type ShopOrder } from '@/lib/orderStorage';
+import { cancelBuyerOrder, observeOrders, ORDER_STATUS_LABELS, reorderBuyerOrder, submitOrderReview, type ShopOrder } from '@/lib/orderStorage';
 import { distanceMeters, getTrackingStage, isFreshDriverLocation, TRACKING_STEPS } from '@/lib/deliveryTracking';
 import DriverLocationMap from '@/components/DriverLocationMap';
 
@@ -17,11 +17,25 @@ export default function TrackingScreen() {
   const [orders, setOrders] = useState<ShopOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [foodRating, setFoodRating] = useState(5);
+  const [deliveryRating, setDeliveryRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState('');
+  const [reviewTags, setReviewTags] = useState<string[]>([]);
+  const [actionLoading, setActionLoading] = useState(false);
+  const initializedReviewOrder = useRef<string | null>(null);
 
   useFocusEffect(useCallback(() => {
     setLoading(true);
     return observeOrders('buyer', (loadedOrders) => {
       setOrders(loadedOrders);
+      const loadedOrder = orderId ? loadedOrders.find((item) => item.id === orderId) : loadedOrders[0];
+      if (loadedOrder?.review && initializedReviewOrder.current !== loadedOrder.id) {
+        initializedReviewOrder.current = loadedOrder.id;
+        setFoodRating(loadedOrder.review.foodRating);
+        setDeliveryRating(loadedOrder.review.deliveryRating ?? 5);
+        setReviewComment(loadedOrder.review.comment);
+        setReviewTags(loadedOrder.review.tags);
+      }
       setLoading(false);
       setError('');
     }, () => { setLoading(false); setError('Pembaruan pesanan belum dapat dimuat. Mencoba menghubungkan kembali.'); }, orderId);
@@ -32,6 +46,43 @@ export default function TrackingScreen() {
   const driver = order?.driver;
   const freshLocation = driver && isFreshDriverLocation(driver.recordedAt);
   const destinationDistance = driver?.coordinate && driver.destination ? distanceMeters(driver.coordinate, driver.destination) : null;
+
+  const cancelOrder = (selectedOrder: ShopOrder) => {
+    const reasons = ['Berubah pikiran', 'Alamat pengiriman salah', 'Pesanan dibuat tidak sengaja'];
+    Alert.alert('Batalkan pesanan?', 'Pembatalan hanya tersedia sebelum merchant mulai memproses pesanan.', [
+      { text: 'Kembali', style: 'cancel' },
+      ...reasons.map((reason) => ({
+        text: reason,
+        onPress: async () => {
+          setActionLoading(true);
+          try { await cancelBuyerOrder(selectedOrder.id, reason); }
+          catch (actionError) { Alert.alert('Tidak dapat membatalkan', actionError instanceof Error ? actionError.message : 'Silakan coba lagi.'); }
+          finally { setActionLoading(false); }
+        },
+      })),
+    ]);
+  };
+
+  const reorder = async (selectedOrder: ShopOrder) => {
+    setActionLoading(true);
+    try {
+      const count = await reorderBuyerOrder(selectedOrder.id);
+      Alert.alert('Ditambahkan ke keranjang', `${count} menu yang masih tersedia telah ditambahkan.`);
+      router.push('/(tabs)/cart');
+    } catch (actionError) {
+      Alert.alert('Tidak dapat memesan lagi', actionError instanceof Error ? actionError.message : 'Menu sedang tidak tersedia.');
+    } finally { setActionLoading(false); }
+  };
+
+  const saveReview = async (selectedOrder: ShopOrder) => {
+    setActionLoading(true);
+    try {
+      await submitOrderReview({ orderId: selectedOrder.id, foodRating, deliveryRating: selectedOrder.driver ? deliveryRating : null, comment: reviewComment, tags: reviewTags });
+      Alert.alert('Terima kasih', 'Ulasanmu telah tersimpan dan membantu UMKM berkembang.');
+    } catch (actionError) {
+      Alert.alert('Ulasan belum tersimpan', actionError instanceof Error ? actionError.message : 'Silakan coba lagi.');
+    } finally { setActionLoading(false); }
+  };
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -84,7 +135,7 @@ export default function TrackingScreen() {
             </> : <Text style={styles.statusText}>{order.status === 'ready_for_pickup' ? 'Pesanan siap. Menunggu penugasan driver.' : 'Lokasi akan muncul setelah driver ditugaskan dan mulai berbagi GPS.'}</Text>}
           </View>
           <View style={styles.orderCard}>
-            <Text style={styles.orderTitle}>Rincian pesanan</Text>
+            <Text style={styles.orderTitle}>{order.storeName}</Text>
             {order.items.map((item, index) => <View key={`${item.name}-${index}`} style={styles.orderItem}>
               <View style={styles.orderInfo}><Text style={styles.orderName}>{item.name}{item.variant ? ` · ${item.variant}` : ''}</Text><Text style={styles.orderQty}>{item.quantity} x {rupiah(item.unitPrice)}</Text></View>
               <Text style={styles.orderPrice}>{rupiah(item.unitPrice * item.quantity)}</Text>
@@ -97,11 +148,34 @@ export default function TrackingScreen() {
             <View style={styles.totalRow}><Text style={styles.totalLabel}>Diskon</Text><Text style={styles.orderPrice}>- {rupiah(order.discountAmount)}</Text></View>
             <View style={styles.totalRow}><Text style={styles.totalLabel}>Total pembayaran</Text><Text style={styles.total}>{rupiah(order.total)}</Text></View>
           </View>
+          {order.status === 'cancelled' && order.cancellationReason ? <Text style={styles.cancelReason}>Alasan pembatalan: {order.cancellationReason}</Text> : null}
+          <View style={styles.actionRow}>
+            {['pending_payment', 'confirmed', 'pending'].includes(order.status) && order.paymentStatus !== 'success' ? <Pressable style={styles.secondaryButton} disabled={actionLoading} onPress={() => cancelOrder(order)}><Text style={styles.secondaryButtonText}>Batalkan</Text></Pressable> : null}
+            {['completed', 'delivered', 'cancelled', 'payment_failed', 'rejected'].includes(order.status) ? <Pressable style={styles.primaryAction} disabled={actionLoading} onPress={() => void reorder(order)}><AppIcon name="refresh" size={17} color="#fff" /><Text style={styles.primaryActionText}>Pesan lagi</Text></Pressable> : null}
+          </View>
+          {['completed', 'delivered'].includes(order.status) && (
+            <View style={styles.reviewCard}>
+              <Text style={styles.orderTitle}>{order.review ? 'Ubah ulasan' : 'Bagaimana pesananmu?'}</Text>
+              <Text style={styles.reviewLabel}>Makanan dari {order.storeName}</Text>
+              <StarPicker value={foodRating} onChange={setFoodRating} />
+              {order.driver ? <><Text style={styles.reviewLabel}>Pengantaran driver</Text><StarPicker value={deliveryRating} onChange={setDeliveryRating} /></> : null}
+              <View style={styles.tagRow}>{['Enak', 'Porsi pas', 'Kemasan rapi', 'Cepat'].map((tag) => {
+                const active = reviewTags.includes(tag);
+                return <Pressable key={tag} style={[styles.tag, active && styles.tagActive]} onPress={() => setReviewTags((tags) => active ? tags.filter((item) => item !== tag) : [...tags, tag])}><Text style={[styles.tagText, active && styles.tagTextActive]}>{tag}</Text></Pressable>;
+              })}</View>
+              <TextInput value={reviewComment} onChangeText={setReviewComment} placeholder="Tulis pengalamanmu (opsional)" placeholderTextColor={COLORS.muted} multiline maxLength={500} style={styles.reviewInput} />
+              <Pressable style={styles.primaryAction} disabled={actionLoading} onPress={() => void saveReview(order)}><Text style={styles.primaryActionText}>{actionLoading ? 'Menyimpan...' : 'Simpan ulasan'}</Text></Pressable>
+            </View>
+          )}
         </>}
         {!loading && !order && !error && <View style={styles.statusCard}><Text style={styles.statusText}>{orderId ? 'Pesanan tidak ditemukan atau tidak dapat diakses oleh akun ini.' : 'Belum ada pesanan untuk ditampilkan.'}</Text></View>}
       </ScrollView>
     </SafeAreaView>
   );
+}
+
+function StarPicker({ value, onChange }: { value: number; onChange: (rating: number) => void }) {
+  return <View style={styles.stars}>{[1, 2, 3, 4, 5].map((rating) => <Pressable key={rating} onPress={() => onChange(rating)} accessibilityRole="button" accessibilityLabel={`${rating} bintang`}><AppIcon name={rating <= value ? 'star' : 'star-outline'} size={28} color="#F5A623" /></Pressable>)}</View>;
 }
 
 const styles = StyleSheet.create({
@@ -141,4 +215,19 @@ const styles = StyleSheet.create({
   totalRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   totalLabel: { fontSize: 11, fontWeight: '800', color: COLORS.text },
   total: { fontSize: 14, fontWeight: '900', color: COLORS.primary },
+  cancelReason: { paddingHorizontal: 4, fontSize: 11, color: COLORS.secondaryText },
+  actionRow: { flexDirection: 'row', gap: 10 },
+  secondaryButton: { minHeight: 46, flex: 1, borderRadius: 12, borderWidth: 1, borderColor: COLORS.danger, alignItems: 'center', justifyContent: 'center' },
+  secondaryButtonText: { color: COLORS.danger, fontSize: 12, fontWeight: '900' },
+  primaryAction: { minHeight: 46, flex: 1, borderRadius: 12, backgroundColor: COLORS.primary, flexDirection: 'row', gap: 7, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14 },
+  primaryActionText: { color: '#fff', fontSize: 12, fontWeight: '900' },
+  reviewCard: { backgroundColor: '#fff', borderRadius: 16, padding: 14, gap: 10, ...SHADOW },
+  reviewLabel: { fontSize: 11, fontWeight: '800', color: COLORS.secondaryText },
+  stars: { flexDirection: 'row', gap: 8 },
+  tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
+  tag: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: COLORS.border },
+  tagActive: { borderColor: COLORS.primary, backgroundColor: COLORS.orange50 },
+  tagText: { fontSize: 10, fontWeight: '700', color: COLORS.secondaryText },
+  tagTextActive: { color: COLORS.primary },
+  reviewInput: { minHeight: 84, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border, padding: 11, textAlignVertical: 'top', fontSize: 12, color: COLORS.text },
 });

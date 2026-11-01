@@ -10,8 +10,7 @@ import { QuantityControl } from '@/components/QuantityControl';
 import { loadAccountData, toggleFavorite } from '@/lib/accountStorage';
 import { addCartItem } from '@/lib/cartStorage';
 import { loadProduct, type CatalogProduct } from '@/lib/catalogStorage';
-
-const variants = ['Original', 'Pedas', 'Tanpa Telur'];
+import { recordRecentProduct } from '@/lib/recentProducts';
 
 export default function ProductScreen() {
   const router = useRouter();
@@ -23,6 +22,7 @@ export default function ProductScreen() {
   const [isFavorite, setIsFavorite] = useState(false);
   const [product, setProduct] = useState<CatalogProduct | null>(null);
   const [loading, setLoading] = useState(true);
+  const [adding, setAdding] = useState(false);
 
   useFocusEffect(useCallback(() => {
     let active = true;
@@ -36,6 +36,9 @@ export default function ProductScreen() {
       if (!active) return;
       setProduct(loadedProduct);
       setIsFavorite(account.favorites.includes(loadedProduct.id));
+      setVariant('Original');
+      setQty(1);
+      void recordRecentProduct(loadedProduct.id);
     }).catch((error: unknown) => {
       if (active) Alert.alert('Produk tidak dapat dimuat', error instanceof Error ? error.message : 'Periksa koneksi Supabase.');
     }).finally(() => {
@@ -53,13 +56,21 @@ export default function ProductScreen() {
 
   const handleToggleFavorite = async () => {
     try {
-      await toggleFavorite('1');
+      await toggleFavorite(product.id);
       setIsFavorite((current) => !current);
     } catch (error) {
       Alert.alert('Favorit perlu akun', error instanceof Error ? error.message : 'Masuk untuk menyimpan produk favorit.');
       router.push('/account-details?section=login' as any);
     }
   };
+
+  const variants = product.details.variants.length > 0
+    ? product.details.variants.filter((item) => item.stock > 0)
+    : [{ name: 'Original', price: product.details.promoPrice ?? product.price, stock: product.details.stock }];
+  const selectedVariant = variants.find((item) => item.name === variant) ?? variants[0];
+  const effectiveVariant = selectedVariant?.name ?? 'Original';
+  // Checkout currently uses the base catalog price. Keep the displayed price consistent.
+  const unitPrice = product.price;
 
   return (
     <View style={styles.root}>
@@ -80,12 +91,12 @@ export default function ProductScreen() {
             <View style={styles.nameWrap}>
               <Text style={styles.name}>{product.name}</Text>
               <View style={styles.ratingRow}>
-                <AppIcon name="star" size={14} color="#F59E0B" />
-                <Text style={styles.rating}>4.8</Text>
-                <Text style={styles.reviews}>(120 ulasan)</Text>
+                <AppIcon name="restaurant" size={14} color={COLORS.primary} />
+                <Text style={styles.rating}>{product.category}</Text>
+                <Text style={styles.reviews}>{product.isAvailable ? 'Menu tersedia' : 'Tidak tersedia'}</Text>
               </View>
             </View>
-            <Text style={styles.price}>{rupiah(product.price)}</Text>
+            <Text style={styles.price}>{rupiah(unitPrice)}</Text>
           </View>
 
           <Text style={styles.description}>
@@ -95,8 +106,8 @@ export default function ProductScreen() {
           <Text style={styles.sectionTitle}>Varian</Text>
           <View style={styles.variantRow}>
             {variants.map((item) => (
-              <Pressable key={item} onPress={() => setVariant(item)} style={[styles.variant, variant === item && styles.variantActive]}>
-                <Text style={[styles.variantText, variant === item && styles.variantTextActive]}>{item}</Text>
+              <Pressable key={item.name} onPress={() => setVariant(item.name)} style={[styles.variant, effectiveVariant === item.name && styles.variantActive]}>
+                <Text style={[styles.variantText, effectiveVariant === item.name && styles.variantTextActive]}>{item.name}</Text>
               </Pressable>
             ))}
           </View>
@@ -106,25 +117,28 @@ export default function ProductScreen() {
             <QuantityControl value={qty} onChange={setQty} />
           </View>
 
-          <View style={styles.merchantCard}>
+          <Pressable style={styles.merchantCard} accessibilityRole="button" accessibilityLabel={`Lihat semua menu ${product.storeName}`} onPress={() => router.push({ pathname: '/store', params: { id: product.storeId } })}>
             <View style={styles.merchantIcon}><AppIcon name="storefront" size={24} color={COLORS.primary} /></View>
             <View style={styles.merchantInfo}>
               <Text style={styles.merchantName}>{product.storeName}</Text>
               <Text style={styles.merchantMeta}>{product.storeAddress}</Text>
             </View>
             <AppIcon name="chevron-forward" size={18} color={COLORS.muted} />
-          </View>
+          </Pressable>
         </ScrollView>
 
         <View style={styles.bottomBar}>
           <View>
             <Text style={styles.totalLabel}>Total</Text>
-            <Text style={styles.total}>{rupiah(product.price * qty)}</Text>
+            <Text style={styles.total}>{rupiah(unitPrice * qty)}</Text>
           </View>
           <Pressable
-            style={styles.addCart}
+            style={[styles.addCart, (adding || !product.isAvailable || !variants.length) && { opacity: 0.5 }]}
+            disabled={adding || !product.isAvailable || !variants.length}
             onPress={() => {
-              void addCartItem(product.id, qty, variant).then(() => router.push('/(tabs)/cart')).catch((error) => {
+              if (adding) return;
+              setAdding(true);
+              void addCartItem(product.id, qty, effectiveVariant).then(() => router.push('/(tabs)/cart')).catch((error) => {
                 if (error instanceof Error && error.message.includes('Masuk')) {
                   Alert.alert('Masuk diperlukan', error.message, [
                     { text: 'Batal', style: 'cancel' },
@@ -133,11 +147,11 @@ export default function ProductScreen() {
                   return;
                 }
                 Alert.alert('Tidak dapat menambahkan produk', error instanceof Error ? error.message : 'Silakan coba lagi.');
-              });
+              }).finally(() => setAdding(false));
             }}
           >
             <AppIcon name="cart" size={19} color="#fff" />
-            <Text style={styles.addCartText}>+ Keranjang</Text>
+            <Text style={styles.addCartText}>{adding ? 'Menambahkan…' : !product.isAvailable || !variants.length ? 'Tidak tersedia' : '+ Keranjang'}</Text>
           </Pressable>
         </View>
       </View>

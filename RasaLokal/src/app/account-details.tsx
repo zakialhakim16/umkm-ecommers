@@ -41,6 +41,7 @@ export default function AccountDetailsScreen() {
   const requestedAuthMode = Array.isArray(params.authMode) ? params.authMode[0] : params.authMode;
   const requestedReturnTo = Array.isArray(params.returnTo) ? params.returnTo[0] : params.returnTo;
   const driverAuthentication = requestedReturnTo === '/driver-register' || requestedReturnTo === '/driver';
+  const merchantAuthentication = requestedReturnTo === '/seller';
   const section = rawSection && TITLES[rawSection] ? rawSection : 'login';
   const [account, setAccount] = useState<AccountData>(EMPTY_ACCOUNT);
   const [catalogProducts, setCatalogProducts] = useState<Awaited<ReturnType<typeof loadPublicProducts>>>([]);
@@ -369,8 +370,8 @@ export default function AccountDetailsScreen() {
             </View>
             <View style={styles.authCard}>
               <View style={styles.intro}>
-                <Text style={styles.heading}>{account.profile ? 'Profil saya' : authMode === 'signIn' ? driverAuthentication ? 'Masuk akun driver' : 'Selamat datang kembali' : driverAuthentication ? 'Buat akun driver' : 'Buat akun baru'}</Text>
-                <Text style={[styles.body, styles.authDescription]}>{account.profile ? 'Perbarui informasi profil yang tersimpan di akunmu.' : driverAuthentication ? authMode === 'signUp' ? 'Buat akun, lalu lengkapi data kendaraan untuk ditinjau admin.' : 'Masuk untuk melanjutkan ke Pusat Driver.' : authMode === 'signUp' ? 'Daftar untuk mulai belanja produk UMKM favoritmu.' : 'Masuk untuk melanjutkan ke RasaLokal.'}</Text>
+                <Text style={styles.heading}>{account.profile ? 'Profil saya' : authMode === 'signIn' ? driverAuthentication ? 'Masuk akun driver' : merchantAuthentication ? 'Masuk akun mitra' : 'Selamat datang kembali' : driverAuthentication ? 'Buat akun driver' : merchantAuthentication ? 'Buat akun mitra' : 'Buat akun baru'}</Text>
+                <Text style={[styles.body, styles.authDescription]}>{account.profile ? 'Perbarui informasi profil yang tersimpan di akunmu.' : driverAuthentication ? authMode === 'signUp' ? 'Buat akun, lalu lengkapi data kendaraan untuk ditinjau admin.' : 'Masuk untuk melanjutkan ke Pusat Driver.' : merchantAuthentication ? authMode === 'signUp' ? 'Buat akun pemilik usaha untuk mendaftarkan dan mengelola toko.' : 'Masuk untuk melanjutkan ke Pusat Mitra.' : authMode === 'signUp' ? 'Daftar untuk mulai belanja produk UMKM favoritmu.' : 'Masuk untuk melanjutkan ke RasaLokal.'}</Text>
               </View>
             {account.profile ? (
               <>

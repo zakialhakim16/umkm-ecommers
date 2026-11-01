@@ -24,8 +24,16 @@ export type LegacyOrderStatus = (typeof LEGACY_ORDER_STATUSES)[number];
 export type OrderStatus = (typeof ORDER_STATUS_SEQUENCE)[number] | LegacyOrderStatus;
 export type PaymentStatus = 'pending' | 'processing' | 'success' | 'failed';
 
+export type OrderReview = {
+  foodRating: number;
+  deliveryRating: number | null;
+  comment: string;
+  tags: string[];
+};
+
 export type ShopOrder = {
   id: string;
+  storeName: string;
   status: OrderStatus;
   customerName: string;
   customerPhone: string;
@@ -45,6 +53,8 @@ export type ShopOrder = {
   driver: DriverTracking | null;
   deliveryProofPath: string | null;
   codCollectedAmount: number | null;
+  cancellationReason: string | null;
+  review: OrderReview | null;
   items: { name: string; quantity: number; unitPrice: number; variant: string }[];
 };
 
@@ -85,11 +95,14 @@ type OrderRecord = {
   driver_location_at?: string | null;
   delivery_proof_path?: string | null;
   cod_collected_amount?: number | null;
+  cancellation_reason?: string | null;
   pickup_latitude?: number | null;
   pickup_longitude?: number | null;
   delivery_latitude?: number | null;
   delivery_longitude?: number | null;
   order_items: { product_name: string; quantity: number; unit_price: number; variant: string }[];
+  stores?: { name: string } | null;
+  order_reviews?: { food_rating: number; delivery_rating: number | null; comment: string; tags: string[] }[];
 };
 
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
@@ -196,6 +209,7 @@ function mapOrder(order: OrderRecord): ShopOrder {
   const status = normalizeOrderStatus(order.status);
   return {
     id: order.id,
+    storeName: order.stores?.name ?? 'UMKM RasaLokal',
     status,
     customerName: order.customer_name,
     customerPhone: order.customer_phone,
@@ -226,6 +240,13 @@ function mapOrder(order: OrderRecord): ShopOrder {
     deliveryProofPath: order.delivery_proof_path ?? null,
     codCollectedAmount: order.cod_collected_amount === null || order.cod_collected_amount === undefined
       ? null : Number(order.cod_collected_amount),
+    cancellationReason: order.cancellation_reason ?? null,
+    review: order.order_reviews?.[0] ? {
+      foodRating: order.order_reviews[0].food_rating,
+      deliveryRating: order.order_reviews[0].delivery_rating,
+      comment: order.order_reviews[0].comment,
+      tags: order.order_reviews[0].tags ?? [],
+    } : null,
     items: (order.order_items ?? []).map((item) => ({
       name: item.product_name,
       quantity: item.quantity,
@@ -239,7 +260,7 @@ export async function loadSellerOrders(): Promise<ShopOrder[]> {
   const userId = await requireUserId();
   const { data, error } = await supabase
     .from('orders')
-    .select('*, order_items(product_name, quantity, unit_price, variant)')
+    .select('*, stores(name), order_items(product_name, quantity, unit_price, variant), order_reviews(food_rating, delivery_rating, comment, tags)')
     .eq('store_id', userId)
     .order('created_at', { ascending: false });
   if (error) throw error;
@@ -250,7 +271,7 @@ export async function loadBuyerOrders(): Promise<ShopOrder[]> {
   const userId = await requireUserId();
   const { data, error } = await supabase
     .from('orders')
-    .select('*, order_items(product_name, quantity, unit_price, variant)')
+    .select('*, stores(name), order_items(product_name, quantity, unit_price, variant), order_reviews(food_rating, delivery_rating, comment, tags)')
     .eq('buyer_id', userId)
     .order('created_at', { ascending: false });
   if (error) throw error;
@@ -272,7 +293,7 @@ export { getNextMerchantStatus };
 export async function loadDriverOrders(): Promise<ShopOrder[]> {
   const userId = await requireUserId();
   const { data, error } = await supabase.from('orders')
-    .select('*, order_items(product_name, quantity, unit_price, variant)')
+    .select('*, stores(name), order_items(product_name, quantity, unit_price, variant), order_reviews(food_rating, delivery_rating, comment, tags)')
     .eq('driver_id', userId)
     .order('created_at', { ascending: false });
   if (error) throw error;
@@ -338,7 +359,7 @@ export async function claimDriverOrder(orderId: string): Promise<void> {
 async function loadParticipantOrder(orderId: string): Promise<ShopOrder[]> {
   await requireUserId();
   const { data, error } = await supabase.from('orders')
-    .select('*, order_items(product_name, quantity, unit_price, variant)').eq('id', orderId).maybeSingle();
+    .select('*, stores(name), order_items(product_name, quantity, unit_price, variant), order_reviews(food_rating, delivery_rating, comment, tags)').eq('id', orderId).maybeSingle();
   if (error) throw error;
   return data ? [mapOrder(data as unknown as OrderRecord)] : [];
 }
@@ -411,4 +432,32 @@ export async function completeSimulatedPayment(orderIds: string[], channel: stri
   if (error) throw new Error(error.code === 'PGRST202'
     ? 'Layanan simulasi pembayaran belum tersedia. Terapkan migrasi simulasi pembayaran.'
     : error.message);
+}
+
+export async function cancelBuyerOrder(orderId: string, reason: string): Promise<void> {
+  const { error } = await supabase.rpc('cancel_buyer_order', { p_order_id: orderId, p_reason: reason.trim() });
+  if (error) throw error;
+}
+
+export async function reorderBuyerOrder(orderId: string): Promise<number> {
+  const { data, error } = await supabase.rpc('reorder_buyer_order', { p_order_id: orderId });
+  if (error) throw error;
+  return Number(data ?? 0);
+}
+
+export async function submitOrderReview(input: {
+  orderId: string;
+  foodRating: number;
+  deliveryRating: number | null;
+  comment: string;
+  tags: string[];
+}): Promise<void> {
+  const { error } = await supabase.rpc('submit_order_review', {
+    p_order_id: input.orderId,
+    p_food_rating: input.foodRating,
+    p_delivery_rating: input.deliveryRating,
+    p_comment: input.comment.trim(),
+    p_tags: input.tags,
+  });
+  if (error) throw error;
 }
